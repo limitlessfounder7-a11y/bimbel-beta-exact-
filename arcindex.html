@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <!-- Viewport yang dikunci agar tidak zoom otomatis saat input di HP -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ARC Purwakarta - Invoice Generator</title>
+    
+    <!-- Tailwind CSS untuk Styling Cepat & Modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTML2Canvas untuk mengubah HTML menjadi JPG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+
+    <style>
+        /* CSS Tambahan */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            /* Mencegah highlight biru saat elemen disentuh lama di HP */
+            -webkit-tap-highlight-color: transparent; 
+        }
+        
+        /* Mencegah input field berubah ukuran di iOS Safari */
+        input, textarea, select {
+            font-size: 16px !important; 
+        }
+
+        /* Menyembunyikan template invoice dari layar utama agar tidak mengganggu UI */
+        #invoice-template-container {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            z-index: -100;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Styling spesifik untuk template yang akan dirender menjadi gambar */
+        .invoice-box {
+            width: 1000px;
+            background-color: #ffffff;
+            padding: 50px;
+            color: #1e293b;
+        }
+        
+        .hide { display: none !important; }
+        
+        /* Modal Animasi Halus */
+        .modal-enter {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="pb-24">
+
+    <!-- =========================================
+         UI APLIKASI UTAMA (PUTIH BIRU)
+    ========================================= -->
+    <div class="max-w-4xl mx-auto p-4 md:p-8">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center gap-6 mb-8 bg-white p-6 rounded-3xl shadow-sm border border-blue-100">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+                    <i data-feather="truck" class="text-white w-8 h-8"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tighter text-slate-900 leading-none mb-1">ARC <span class="text-blue-600 italic">PURWAKARTA</span></h1>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Generator Invoice Offline</p>
+                </div>
+            </div>
+            <button onclick="resetForm()" class="flex items-center gap-2 px-5 py-3 md:py-2 w-full md:w-auto justify-center bg-slate-50 text-slate-500 rounded-xl md:rounded-full font-bold text-xs hover:bg-slate-100 transition border border-slate-200 active:scale-95">
+                <i data-feather="refresh-cw" class="w-4 h-4"></i> RESET FORM
+            </button>
+        </header>
+
+        <!-- Form Container -->
+        <div class="bg-white rounded-[2rem] p-5 md:p-10 shadow-sm border border-blue-50 space-y-8">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Form Peminjam -->
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b border-blue-50 pb-2">
+                        1. Identitas Peminjam
+                    </h3>
+                    <input type="text" id="input-nama" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-slate-800 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="Nama Lengkap KTP" />
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="tel" id="input-nik" maxlength="16" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-slate-800 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="NIK (16 Digit)" />
+                        <input type="tel" id="input-phone" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-slate-800 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="No. WhatsApp" />
+                    </div>
+                </div>
+
+                <!-- Form Unit -->
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b border-blue-50 pb-2">
+                        2. Detail Unit
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="input-unit" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-black text-slate-800 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="Nama Unit" />
+                        <input type="text" id="input-nopol" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-black text-blue-600 uppercase focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="Plat Nomor" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="input-harga" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-black text-slate-800 focus:ring-2 focus:ring-blue-400 outline-none transition-all" placeholder="Harga (Rp)" />
+                        <select id="input-durasi" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-slate-700 outline-none transition-all appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:12px_12px] bg-[right_16px_center] bg-no-repeat cursor-pointer">
+                            <option value="24 Jam">24 Jam</option>
+                            <option value="12 Jam">12 Jam</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Jaminan -->
+                <div class="md:col-span-2 space-y-4">
+                    <h3 class="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b border-blue-50 pb-2">
+                        3. Jaminan (Ditahan)
+                    </h3>
+                    <textarea id="input-jaminan" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-slate-800 min-h-[100px] focus:ring-2 focus:ring-blue-400 outline-none transition-all resize-none" placeholder="Contoh: Motor NMAX 2022 + STNK Asli"></textarea>
+                </div>
+            </div>
+
+            <!-- Kamera -->
+            <div class="space-y-4 pt-4">
+                <h3 class="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b border-blue-50 pb-2">
+                    4. Dokumentasi Bukti
+                </h3>
+                <div class="grid grid-cols-3 gap-2 md:gap-4">
+                    <!-- KTP -->
+                    <button onclick="startCamera('ktp')" id="btn-foto-ktp" class="relative aspect-[3/4] md:aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2 transition border-slate-300 bg-slate-50 hover:bg-slate-100 overflow-hidden active:scale-95">
+                        <img id="preview-ktp" class="absolute inset-0 w-full h-full object-cover hide" />
+                        <div id="icon-ktp" class="text-center text-blue-400">
+                            <i data-feather="credit-card" class="mb-2 mx-auto w-6 h-6 md:w-8 md:h-8"></i>
+                            <span class="text-[8px] md:text-[10px] font-black text-slate-500 uppercase leading-tight">Foto<br class="md:hidden"/> KTP</span>
+                        </div>
+                    </button>
+                    <!-- SIM -->
+                    <button onclick="startCamera('sim')" id="btn-foto-sim" class="relative aspect-[3/4] md:aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2 transition border-slate-300 bg-slate-50 hover:bg-slate-100 overflow-hidden active:scale-95">
+                        <img id="preview-sim" class="absolute inset-0 w-full h-full object-cover hide" />
+                        <div id="icon-sim" class="text-center text-blue-400">
+                            <i data-feather="shield" class="mb-2 mx-auto w-6 h-6 md:w-8 md:h-8"></i>
+                            <span class="text-[8px] md:text-[10px] font-black text-slate-500 uppercase leading-tight">Foto<br class="md:hidden"/> SIM</span>
+                        </div>
+                    </button>
+                    <!-- UNIT -->
+                    <button onclick="startCamera('mobil')" id="btn-foto-mobil" class="relative aspect-[3/4] md:aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2 transition border-slate-300 bg-slate-50 hover:bg-slate-100 overflow-hidden active:scale-95">
+                        <img id="preview-mobil" class="absolute inset-0 w-full h-full object-cover hide" />
+                        <div id="icon-mobil" class="text-center text-blue-400">
+                            <i data-feather="user-check" class="mb-2 mx-auto w-6 h-6 md:w-8 md:h-8"></i>
+                            <span class="text-[8px] md:text-[10px] font-black text-slate-500 uppercase leading-tight">Penyewa<br class="md:hidden"/>+Unit</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tombol Aksi -->
+            <div class="pt-6">
+                <button onclick="generateJPG()" id="btn-generate" class="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center gap-3 transition-all active:scale-95 text-base md:text-lg uppercase tracking-widest disabled:bg-slate-400 disabled:cursor-not-allowed">
+                    <i data-feather="image"></i>
+                    <span id="btn-text">JADIKAN GAMBAR (JPG)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================
+         MODAL KAMERA PULL-UP
+    ========================================= -->
+    <div id="camera-modal" class="fixed inset-0 bg-slate-900/95 z-[200] flex-col items-center justify-center p-4 hide modal-enter backdrop-blur-sm">
+        <div class="relative w-full max-w-md bg-black rounded-[2rem] overflow-hidden shadow-2xl border-2 border-slate-700">
+            <!-- Menambahkan object-cover dan mematikan fungsi kontrol bawaan browser pada video -->
+            <video id="camera-video" autoplay playsinline muted class="w-full h-[65vh] object-cover pointer-events-none"></video>
+            
+            <div class="absolute bottom-0 left-0 right-0 p-8 flex justify-between items-center bg-gradient-to-t from-black via-black/80 to-transparent pt-20">
+                <button onclick="closeCamera()" class="px-5 py-3 bg-white/20 text-white rounded-full font-bold uppercase text-[10px] active:bg-white/40 transition">BATAL</button>
+                <button onclick="capturePhoto()" class="w-20 h-20 bg-white rounded-full border-4 border-slate-500 flex items-center justify-center active:scale-90 transition shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                    <div class="w-16 h-16 rounded-full border border-slate-300"></div>
+                </button>
+                <div class="w-16"></div> <!-- Spacer untuk menyeimbangkan tombol Batal -->
+            </div>
+        </div>
+        <p id="camera-title" class="text-white mt-6 font-black uppercase text-xs tracking-widest animate-pulse bg-blue-600 px-6 py-2 rounded-full">AMBIL FOTO</p>
+    </div>
+
+    <!-- =========================================
+         MODAL HASIL GAMBAR (ANTI GAGAL DOWNLOAD)
+    ========================================= -->
+    <div id="result-modal" class="fixed inset-0 bg-slate-900/95 z-[300] flex-col items-center justify-start overflow-y-auto p-4 md:p-10 hide modal-enter backdrop-blur-sm">
+        <div class="w-full max-w-2xl bg-white rounded-3xl p-5 md:p-8 mb-10 mt-10 shadow-2xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-black text-slate-800 text-lg flex items-center gap-2">
+                    <i data-feather="check-circle" class="text-green-500"></i> Invoice Selesai!
+                </h3>
+                <button onclick="closeResult()" class="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-red-500 hover:bg-red-50 transition">
+                    <i data-feather="x"></i>
+                </button>
+            </div>
+            
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex gap-3 items-start">
+                <i data-feather="info" class="text-blue-600 shrink-0 mt-0.5"></i>
+                <div class="text-[11px] md:text-xs font-bold text-blue-800 leading-relaxed">
+                    <p class="mb-1">Gambar telah diunduh otomatis ke galeri Anda.</p>
+                    <p class="text-blue-600 uppercase font-black">Jika gagal, TEKAN DAN TAHAN gambar di bawah ini, lalu pilih "Simpan Gambar" (Save Image).</p>
+                </div>
+            </div>
+
+            <!-- Gambar Hasil -->
+            <img id="final-image" src="" alt="Invoice ARC Purwakarta" class="w-full border border-slate-200 rounded-xl shadow-sm mb-6 select-none" style="-webkit-touch-callout: default;" />
+            
+            <button onclick="downloadManual()" class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl flex items-center justify-center gap-2 uppercase transition active:scale-95">
+                <i data-feather="download"></i> Download Ulang
+            </button>
+        </div>
+    </div>
+
+    <!-- =========================================
+         TEMPLATE INVOICE (DISEMBUNYIKAN UNTUK DIRENDER)
+         CSS INLINE TOTAL AGAR BISA DIBACA HTML2CANVAS TANPA ERROR
+    ========================================= -->
+    <div id="invoice-template-container">
+        <div id="invoice-template" class="invoice-box">
+            
+            <!-- Header -->
+            <div style="display: flex; justify-content: space-between; border-bottom: 6px solid #2563eb; padding-bottom: 25px; margin-bottom: 30px;">
+                <div>
+                    <h1 style="font-size: 40px; font-weight: 900; margin: 0; font-style: italic; letter-spacing: -1px;">ARC <span style="color: #2563eb;">PURWAKARTA</span></h1>
+                    <p style="font-size: 11px; font-weight: bold; color: #64748b; letter-spacing: 3px; margin-top: 5px; text-transform: uppercase;">Penyedia Jasa Rental Mobil Profesional</p>
+                    <div style="font-size: 11px; font-weight: bold; color: #475569; margin-top: 15px; line-height: 1.5;">
+                        <div>📍 Ds. Campakasari, Kec. Campaka, Purwakarta</div>
+                        <div>📞 WhatsApp: 0877-3380-2012</div>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="background-color: #2563eb; color: #ffffff; padding: 8px 15px; font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; display: inline-block; border-radius: 4px;">Surat Perjanjian & Invoice</div>
+                    <p id="tpl-id" style="font-size: 20px; font-weight: 900; margin-top: 15px; margin-bottom: 5px;">#ARC-12345</p>
+                    <p id="tpl-date" style="font-size: 10px; color: #94a3b8; font-weight: bold; text-transform: uppercase;">Tanggal</p>
+                </div>
+            </div>
+
+            <!-- Data 2 Kolom -->
+            <div style="display: flex; gap: 30px; margin-bottom: 30px;">
+                <div style="flex: 1;">
+                    <h3 style="font-size: 11px; font-weight: 900; color: #2563eb; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; margin-top:0;">I. Identitas Peminjam</h3>
+                    <p id="tpl-nama" style="font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 15px 0 5px 0;">NAMA PENYEWA</p>
+                    <p style="font-size: 12px; font-weight: bold; color: #64748b; margin:0;">NIK: <span id="tpl-nik">...</span> | WA: <span id="tpl-phone">...</span></p>
+                </div>
+                <div style="flex: 1;">
+                    <h3 style="font-size: 11px; font-weight: 900; color: #dc2626; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; margin-top:0;">II. Jaminan (Ditahan)</h3>
+                    <div style="background-color: #fef2f2; border: 2px dashed #fca5a5; padding: 15px; text-align: center; margin-top: 15px; border-radius: 8px;">
+                        <p id="tpl-jaminan" style="font-size: 14px; font-weight: 900; color: #b91c1c; font-style: italic; text-transform: uppercase; margin: 0; line-height: 1.4;">"BELUM DIISI"</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabel Unit -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background-color: #2563eb; color: #ffffff;">
+                        <th style="padding: 15px; text-align: left; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">Unit Kendaraan & Nopol</th>
+                        <th style="padding: 15px; text-align: center; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">Durasi</th>
+                        <th style="padding: 15px; text-align: right; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">Total Tagihan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background-color: #f8fafc;">
+                        <td style="padding: 20px; border-right: 1px solid #e2e8f0;">
+                            <p id="tpl-unit" style="font-size: 24px; font-weight: 900; font-style: italic; text-transform: uppercase; margin: 0 0 5px 0; color: #0f172a;">UNIT MOBIL</p>
+                            <p id="tpl-nopol" style="font-size: 14px; font-weight: 900; color: #2563eb; text-transform: uppercase; margin: 0; letter-spacing: 2px;">NOPOL</p>
+                        </td>
+                        <td id="tpl-durasi" style="padding: 20px; text-align: center; font-size: 16px; font-weight: bold; text-transform: uppercase; border-right: 1px solid #e2e8f0; color: #475569;">24 Jam</td>
+                        <td id="tpl-harga" style="padding: 20px; text-align: right; font-size: 32px; font-weight: 900; color: #2563eb; font-style: italic;">Rp 0</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Foto Bukti -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="font-size: 11px; font-weight: 900; color: #64748b; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">III. Dokumentasi Bukti (KYC)</h3>
+                <div style="display: flex; gap: 15px;">
+                    <!-- Kotak 1 -->
+                    <div style="flex: 1; text-align: center;">
+                        <div style="border: 4px solid #2563eb; border-radius: 12px; height: 180px; background-color: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                            <img id="tpl-img-ktp" style="width: 100%; height: 100%; object-fit: cover; display: none;" />
+                            <span id="tpl-txt-ktp" style="font-size: 10px; font-weight: bold; color: #94a3b8;">FOTO KOSONG</span>
+                        </div>
+                        <p style="font-size: 9px; font-weight: 900; color: #475569; margin-top: 10px; letter-spacing: 1px;">FOTO KTP ASLI</p>
+                    </div>
+                    <!-- Kotak 2 -->
+                    <div style="flex: 1; text-align: center;">
+                        <div style="border: 4px solid #2563eb; border-radius: 12px; height: 180px; background-color: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                            <img id="tpl-img-sim" style="width: 100%; height: 100%; object-fit: cover; display: none;" />
+                            <span id="tpl-txt-sim" style="font-size: 10px; font-weight: bold; color: #94a3b8;">FOTO KOSONG</span>
+                        </div>
+                        <p style="font-size: 9px; font-weight: 900; color: #475569; margin-top: 10px; letter-spacing: 1px;">FOTO SIM A ASLI</p>
+                    </div>
+                    <!-- Kotak 3 -->
+                    <div style="flex: 1; text-align: center;">
+                        <div style="border: 4px solid #2563eb; border-radius: 12px; height: 180px; background-color: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                            <img id="tpl-img-mobil" style="width: 100%; height: 100%; object-fit: cover; display: none;" />
+                            <span id="tpl-txt-mobil" style="font-size: 10px; font-weight: bold; color: #94a3b8;">FOTO KOSONG</span>
+                        </div>
+                        <p style="font-size: 9px; font-weight: 900; color: #475569; margin-top: 10px; letter-spacing: 1px;">PENYEWA + UNIT</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Syarat & Ketentuan -->
+            <div style="background-color: #eff6ff; border: 2px solid #bfdbfe; border-radius: 12px; padding: 25px; margin-bottom: 40px;">
+                <h4 style="font-size: 11px; font-weight: 900; color: #1e3a8a; text-transform: uppercase; letter-spacing: 1px; margin-top:0; margin-bottom: 15px; border-bottom: 1px solid #93c5fd; padding-bottom: 10px;">Syarat & Ketentuan Sewa ARC Purwakarta</h4>
+                <div style="display: flex; gap: 30px; font-size: 9px; font-weight: bold; color: #334155; line-height: 1.8; text-transform: uppercase;">
+                    <div style="flex: 1;">
+                        <p style="margin: 0 0 10px 0;"><strong>1. DURASI & OVERTIME:</strong> Masa sewa 24 jam. Keterlambatan dikenakan overtime 10%/jam. Keterlambatan lebih 6 jam dihitung 1 hari penuh.</p>
+                        <p style="margin: 0 0 10px 0;"><strong>2. KONDISI UNIT:</strong> Unit diserahkan prima. Segala kerusakan/kehilangan perlengkapan unit menjadi tanggung jawab Penyewa.</p>
+                        <p style="margin: 0 0 10px 0;"><strong>3. BBM & KEBERSIHAN:</strong> BBM dikembalikan sama. Dilarang merokok/bawa benda berbau tajam. Pelanggaran denda cleaning Rp250.000 - Rp500.000.</p>
+                        <p style="margin: 0;"><strong>4. BATAS WILAYAH:</strong> Area penggunaan hanya di Jawa Barat (Atau izin tertulis). Pelanggaran wilayah akan memicu penghentian GPS.</p>
+                    </div>
+                    <div style="flex: 1;">
+                        <p style="margin: 0 0 10px 0;"><strong>5. ASURANSI:</strong> Jika terjadi kecelakaan, Penyewa wajib bayar Own Risk (OR) Rp500.000/titik. Kerusakan berat wajib bayar sewa harian (Loss of Use).</p>
+                        <p style="margin: 0 0 10px 0;"><strong>6. PENGGUNAAN ILEGAL:</strong> Dilarang untuk tindak pidana, balap liar, atau disewakan kembali. Konsekuensi hukum tanggung jawab Penyewa.</p>
+                        <p style="margin: 0;"><strong>7. BARANG BAWAAN:</strong> Pihak Rental tidak bertanggung jawab atas kehilangan barang berharga milik Penyewa di dalam unit kendaraan.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tanda Tangan -->
+            <div style="display: flex; justify-content: space-between; text-align: center; margin-top: 40px;">
+                <div style="width: 40%;">
+                    <p style="font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 100px;">Pihak Peminjam</p>
+                    <div id="tpl-ttd-nama" style="border-top: 3px solid #1e293b; padding-top: 15px; font-size: 20px; font-weight: 900; text-transform: uppercase; color: #0f172a;">NAMA PENYEWA</div>
+                </div>
+                <div style="width: 40%;">
+                    <p style="font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 100px;">ARC Purwakarta</p>
+                    <div style="border-top: 3px solid #1e293b; padding-top: 15px; font-size: 20px; font-weight: 900; text-transform: uppercase; color: #0f172a;">ADMIN MANAGEMENT</div>
+                </div>
+            </div>
+
+            <div style="text-align: center; font-size: 9px; font-weight: 900; color: #94a3b8; letter-spacing: 4px; text-transform: uppercase; border-top: 2px solid #e2e8f0; padding-top: 20px; margin-top: 60px;">
+                Dokumen Resmi ARC Management System • Purwakarta
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Script Utama (Logika Native JS) -->
+    <script>
+        // Inisialisasi Feather Icons
+        feather.replace();
+
+        // State variables
+        let photos = { ktp: null, sim: null, mobil: null };
+        let currentCameraTarget = null;
+        let videoStream = null;
+
+        // Mendapatkan elemen DOM UI
+        const cameraModal = document.getElementById('camera-modal');
+        const cameraVideo = document.getElementById('camera-video');
+        const cameraTitle = document.getElementById('camera-title');
+        
+        const resultModal = document.getElementById('result-modal');
+        const finalImage = document.getElementById('final-image');
+        
+        const btnGenerate = document.getElementById('btn-generate');
+        const btnText = document.getElementById('btn-text');
+
+        // Mengatur Tanggal Hari Ini ke Template
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('tpl-date').innerText = new Date().toLocaleDateString('id-ID', dateOptions);
+        document.getElementById('tpl-id').innerText = "#ARC-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+        // Mencegah spasi pada NIK dan No HP
+        document.getElementById('input-nik').addEventListener('input', function (e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+        document.getElementById('input-phone').addEventListener('input', function (e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // Fungsi Membuka Kamera
+        async function startCamera(target) {
+            currentCameraTarget = target;
+            cameraTitle.innerText = "FOTO " + target.toUpperCase();
+            cameraModal.classList.remove('hide');
+            cameraModal.style.display = 'flex';
+
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                cameraVideo.srcObject = videoStream;
+            } catch (err) {
+                alert("⚠️ Gagal mengakses kamera. Mohon izinkan browser Anda untuk mengakses kamera.");
+                closeCamera();
+            }
+        }
+
+        // Fungsi Memotret
+        function capturePhoto() {
+            if (!cameraVideo) return;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; // Resolusi stabil
+            canvas.height = 768;
+            const ctx = canvas.getContext('2d');
+            
+            // Logika Crop Tengah
+            const hRatio = canvas.width / cameraVideo.videoWidth;
+            const vRatio = canvas.height / cameraVideo.videoHeight;
+            const ratio = Math.max(hRatio, vRatio);
+            const cx = (canvas.width - cameraVideo.videoWidth * ratio) / 2;
+            const cy = (canvas.height - cameraVideo.videoHeight * ratio) / 2;  
+            
+            ctx.drawImage(cameraVideo, 0, 0, cameraVideo.videoWidth, cameraVideo.videoHeight, cx, cy, cameraVideo.videoWidth * ratio, cameraVideo.videoHeight * ratio);
+            
+            // Kompresi ke Base64 (JPG)
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+            photos[currentCameraTarget] = dataUrl;
+            
+            // Tampilkan Preview di UI
+            const imgPreview = document.getElementById(`preview-${currentCameraTarget}`);
+            const iconPreview = document.getElementById(`icon-${currentCameraTarget}`);
+            const btnContainer = document.getElementById(`btn-foto-${currentCameraTarget}`);
+            
+            imgPreview.src = dataUrl;
+            imgPreview.classList.remove('hide');
+            iconPreview.classList.add('hide');
+            
+            btnContainer.classList.remove('border-slate-300', 'bg-slate-50');
+            btnContainer.classList.add('border-blue-500', 'bg-blue-50');
+
+            closeCamera();
+        }
+
+        // Fungsi Menutup Kamera
+        function closeCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+            cameraModal.classList.add('hide');
+            cameraModal.style.display = 'none';
+            currentCameraTarget = null;
+        }
+
+        // Fungsi Menutup Hasil Modal
+        function closeResult() {
+            resultModal.classList.add('hide');
+            resultModal.style.display = 'none';
+        }
+
+        // Reset Keseluruhan
+        function resetForm() {
+            if(confirm("Hapus semua data input?")) {
+                document.querySelectorAll('input, textarea, select').forEach(el => {
+                    if(el.id === 'input-durasi') el.value = '24 Jam';
+                    else el.value = '';
+                });
+                photos = { ktp: null, sim: null, mobil: null };
+                
+                ['ktp', 'sim', 'mobil'].forEach(id => {
+                    document.getElementById(`preview-${id}`).classList.add('hide');
+                    document.getElementById(`icon-${id}`).classList.remove('hide');
+                    const btnContainer = document.getElementById(`btn-foto-${id}`);
+                    btnContainer.classList.add('border-slate-300', 'bg-slate-50');
+                    btnContainer.classList.remove('border-blue-500', 'bg-blue-50');
+                });
+            }
+        }
+
+        // Format Rupiah
+        function formatRupiah(angka) {
+            return new Intl.NumberFormat('id-ID').format(angka);
+        }
+
+        // Fungsi Utama Generate JPG
+        function generateJPG() {
+            // 1. Ambil Nilai dari Input
+            const valNama = document.getElementById('input-nama').value;
+            const valNik = document.getElementById('input-nik').value;
+            const valPhone = document.getElementById('input-phone').value;
+            const valUnit = document.getElementById('input-unit').value;
+            const valNopol = document.getElementById('input-nopol').value;
+            const valHarga = document.getElementById('input-harga').value;
+            const valDurasi = document.getElementById('input-durasi').value;
+            const valJaminan = document.getElementById('input-jaminan').value;
+
+            // 2. Validasi
+            if (!valNama || !valUnit || !photos.ktp || !photos.mobil) {
+                alert("⚠️ Mohon lengkapi:\n1. Nama Peminjam\n2. Nama Unit\n3. Foto KTP\n4. Foto Peminjam+Unit");
+                return;
+            }
+
+            // 3. Set UI Processing
+            btnGenerate.disabled = true;
+            btnGenerate.classList.add('opacity-75', 'cursor-not-allowed');
+            btnText.innerText = "MEMPROSES GAMBAR...";
+
+            // 4. Masukkan Data ke Template Tersembunyi
+            document.getElementById('tpl-nama').innerText = valNama;
+            document.getElementById('tpl-ttd-nama').innerText = valNama;
+            document.getElementById('tpl-nik').innerText = valNik || '-';
+            document.getElementById('tpl-phone').innerText = valPhone || '-';
+            document.getElementById('tpl-unit').innerText = valUnit;
+            document.getElementById('tpl-nopol').innerText = valNopol || '-';
+            document.getElementById('tpl-durasi').innerText = valDurasi;
+            document.getElementById('tpl-harga').innerText = "Rp " + formatRupiah(valHarga || 0);
+            document.getElementById('tpl-jaminan').innerText = `"${valJaminan || 'BELUM DIISI'}"`;
+
+            // 5. Masukkan Gambar ke Template Tersembunyi
+            ['ktp', 'sim', 'mobil'].forEach(id => {
+                const imgEl = document.getElementById(`tpl-img-${id}`);
+                const txtEl = document.getElementById(`tpl-txt-${id}`);
+                if (photos[id]) {
+                    imgEl.src = photos[id];
+                    imgEl.style.display = 'block';
+                    txtEl.style.display = 'none';
+                } else {
+                    imgEl.style.display = 'none';
+                    txtEl.style.display = 'inline';
+                }
+            });
+
+            // 6. Jalankan HTML2Canvas
+            setTimeout(() => {
+                const element = document.getElementById('invoice-template');
+                html2canvas(element, {
+                    scale: 2, // Kualitas optimal (tidak berat, tidak pecah)
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false
+                }).then(canvas => {
+                    // Dapatkan Gambar
+                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    // Set Gambar ke Modal Hasil
+                    finalImage.src = imgData;
+                    resultModal.classList.remove('hide');
+                    resultModal.style.display = 'flex';
+                    
+                    // Kembalikan Tombol
+                    btnGenerate.disabled = false;
+                    btnGenerate.classList.remove('opacity-75', 'cursor-not-allowed');
+                    btnText.innerText = "JADIKAN GAMBAR (JPG)";
+
+                    // Lakukan Otomatis Download
+                    try {
+                        const link = document.createElement('a');
+                        link.href = imgData;
+                        link.download = `ARC_Invoice_${valNama.replace(/\s+/g, '_')}.jpg`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } catch (e) {
+                        console.log("Auto-download diblokir browser");
+                    }
+                }).catch(err => {
+                    alert("❌ Gagal merender gambar. Coba muat ulang halaman atau tutup aplikasi yang tidak digunakan untuk melegakan memori HP.");
+                    btnGenerate.disabled = false;
+                    btnGenerate.classList.remove('opacity-75', 'cursor-not-allowed');
+                    btnText.innerText = "JADIKAN GAMBAR (JPG)";
+                });
+            }, 600); // Waktu yang cukup untuk browser merender gambar di background
+        }
+
+        // Fungsi Download Manual dari Modal
+        function downloadManual() {
+            if(!finalImage.src) return;
+            const nama = document.getElementById('input-nama').value || 'Pelanggan';
+            const link = document.createElement('a');
+            link.href = finalImage.src;
+            link.download = `ARC_Invoice_${nama.replace(/\s+/g, '_')}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
+
+
